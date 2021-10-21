@@ -5,12 +5,14 @@ class Relu:
     def __init__(self):
         self.mask = None
 
+
     def forward(self, x):
         self.mask = (x <= 0)
         out = x.copy()
         out[self.mask] = 0
 
         return out
+
 
     def backward(self, dout):
         dout[self.mask] = 0
@@ -23,10 +25,12 @@ class Sigmoid:
     def __init__(self):
         self.out = None
 
+
     def forward(self, x):
         out = sigmoid(x)
         self.out = out
         return out
+
 
     def backward(self, dout):
         dx = dout * (1.0 - self.out) * self.out
@@ -45,6 +49,7 @@ class Affine:
         self.dW = None
         self.db = None
 
+
     def forward(self, x):
         # 텐서 대응
         self.original_x_shape = x.shape
@@ -54,6 +59,7 @@ class Affine:
         out = np.dot(self.x, self.W) + self.b
 
         return out
+
 
     def backward(self, dout):
         dx = np.dot(dout, self.W.T)
@@ -70,12 +76,14 @@ class SoftmaxWithLoss:
         self.y = None    # softmax의 출력
         self.t = None    # 정답 레이블(원-핫 인코딩 형태)
         
+
     def forward(self, x, t):
         self.t = t
         self.y = softmax(x)
         self.loss = cross_entropy_error(self.y, self.t)
         
         return self.loss
+
 
     def backward(self, dout=1):
         batch_size = self.t.shape[0]
@@ -90,12 +98,10 @@ class SoftmaxWithLoss:
 
 
 class Dropout:
-    """
-    http://arxiv.org/abs/1207.0580
-    """
     def __init__(self, dropout_ratio=0.5):
         self.dropout_ratio = dropout_ratio
         self.mask = None
+
 
     def forward(self, x, train_flg=True):
         if train_flg:
@@ -104,14 +110,12 @@ class Dropout:
         else:
             return x * (1.0 - self.dropout_ratio)
 
+
     def backward(self, dout):
         return dout * self.mask
 
 
 class BatchNormalization:
-    """
-    http://arxiv.org/abs/1502.03167
-    """
     def __init__(self, gamma, beta, momentum=0.9, running_mean=None, running_var=None):
         self.gamma = gamma
         self.beta = beta
@@ -129,6 +133,7 @@ class BatchNormalization:
         self.dgamma = None
         self.dbeta = None
 
+
     def forward(self, x, train_flg=True):
         self.input_shape = x.shape
         if x.ndim != 2:
@@ -139,6 +144,7 @@ class BatchNormalization:
         
         return out.reshape(*self.input_shape)
             
+
     def __forward(self, x, train_flg):
         if self.running_mean is None:
             N, D = x.shape
@@ -165,6 +171,7 @@ class BatchNormalization:
         out = self.gamma * xn + self.beta 
         return out
 
+
     def backward(self, dout):
         if dout.ndim != 2:
             N, C, H, W = dout.shape
@@ -174,6 +181,7 @@ class BatchNormalization:
 
         dx = dx.reshape(*self.input_shape)
         return dx
+
 
     def __backward(self, dout):
         dbeta = dout.sum(axis=0)

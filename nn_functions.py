@@ -48,8 +48,7 @@ def numerical_gradient(f, x):
     return grad
 
 
-def cross_entropy_error(y, t):
-    
+def cross_entropy_error(y, t):    
     delta = 1e-7
     
     if y.ndim == 1:

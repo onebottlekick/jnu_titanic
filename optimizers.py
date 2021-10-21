@@ -1,26 +1,23 @@
 import numpy as np
 
+
 class SGD:
-
-    """확률적 경사 하강법（Stochastic Gradient Descent）"""
-
     def __init__(self, lr=0.01):
         self.lr = lr
         
+
     def update(self, params, grads):
         for key in params.keys():
             params[key] -= self.lr * grads[key] 
 
 
 class Momentum:
-
-    """모멘텀 SGD"""
-
     def __init__(self, lr=0.01, momentum=0.9):
         self.lr = lr
         self.momentum = momentum
         self.v = None
         
+
     def update(self, params, grads):
         if self.v is None:
             self.v = {}
@@ -33,15 +30,12 @@ class Momentum:
 
 
 class Nesterov:
-
-    """Nesterov's Accelerated Gradient (http://arxiv.org/abs/1212.0901)"""
-    # NAG는 모멘텀에서 한 단계 발전한 방법이다. (http://newsight.tistory.com/224)
-    
     def __init__(self, lr=0.01, momentum=0.9):
         self.lr = lr
         self.momentum = momentum
         self.v = None
-        
+
+
     def update(self, params, grads):
         if self.v is None:
             self.v = {}
@@ -56,13 +50,11 @@ class Nesterov:
 
 
 class AdaGrad:
-
-    """AdaGrad"""
-
     def __init__(self, lr=0.01):
         self.lr = lr
         self.h = None
         
+
     def update(self, params, grads):
         if self.h is None:
             self.h = {}
@@ -75,14 +67,12 @@ class AdaGrad:
 
 
 class RMSprop:
-
-    """RMSprop"""
-
     def __init__(self, lr=0.01, decay_rate = 0.99):
         self.lr = lr
         self.decay_rate = decay_rate
         self.h = None
         
+
     def update(self, params, grads):
         if self.h is None:
             self.h = {}
@@ -96,9 +86,6 @@ class RMSprop:
 
 
 class Adam:
-
-    """Adam (http://arxiv.org/abs/1412.6980v8)"""
-
     def __init__(self, lr=0.001, beta1=0.9, beta2=0.999):
         self.lr = lr
         self.beta1 = beta1
@@ -106,6 +93,7 @@ class Adam:
         self.iter = 0
         self.m = None
         self.v = None
+        
         
     def update(self, params, grads):
         if self.m is None:

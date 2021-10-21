@@ -4,7 +4,7 @@ from optimizers import *
 from layers import *
 
 class MultiLayerNet:
-    def __init__(self, input_size, hidden_size_list, output_size, activation='relu', weight_init_std='relu', weight_decay_lambda=0,
+    def __init__(self, input_size, hidden_size_list, activation, output_size, weight_init_std='relu', weight_decay_lambda=0,
                  use_dropout = False, dropout_ratio = 0.5, use_batchnorm=False):
         self.input_size = input_size
         self.output_size = output_size
@@ -15,10 +15,10 @@ class MultiLayerNet:
         self.use_batchnorm = use_batchnorm
         self.params = {}
 
-        # 가중치 초기화
+        # initialize weight
         self.__init_weight(weight_init_std)
 
-        # 계층 생성
+        # add layers
         activation_layer = {'sigmoid': Sigmoid, 'relu': Relu}
         self.layers = OrderedDict()
         for idx in range(1, self.hidden_layer_num+1):
@@ -39,6 +39,7 @@ class MultiLayerNet:
 
         self.last_layer = SoftmaxWithLoss()
 
+    
     def __init_weight(self, weight_init_std):
         all_size_list = [self.input_size] + self.hidden_size_list + [self.output_size]
         for idx in range(1, len(all_size_list)):
@@ -50,6 +51,7 @@ class MultiLayerNet:
             self.params['W' + str(idx)] = scale * np.random.randn(all_size_list[idx-1], all_size_list[idx])
             self.params['b' + str(idx)] = np.zeros(all_size_list[idx])
 
+    
     def predict(self, x, train_flg=False):
         for key, layer in self.layers.items():
             if "Dropout" in key or "BatchNorm" in key:
@@ -59,6 +61,7 @@ class MultiLayerNet:
 
         return x
 
+    
     def loss(self, x, t, train_flg=False):
         y = self.predict(x, train_flg)
 
@@ -69,6 +72,7 @@ class MultiLayerNet:
 
         return self.last_layer.forward(y, t) + weight_decay
 
+    
     def accuracy(self, X, T):
         Y = self.predict(X, train_flg=False)
         Y = np.argmax(Y, axis=1)
@@ -76,8 +80,8 @@ class MultiLayerNet:
 
         accuracy = np.sum(Y == T) / float(X.shape[0])
         return accuracy
-
         
+    
     def gradient(self, x, t):
         # forward
         self.loss(x, t, train_flg=True)
@@ -102,17 +106,17 @@ class MultiLayerNet:
                 grads['beta' + str(idx)] = self.layers['BatchNorm' + str(idx)].dbeta
 
         return grads
-
     
-    def fit(self, X_train, X_test, y_train, y_test, iter_num=1000, batch_size=100, optimizer=SGD(lr=0.01), epochs=200):
+    
+    def fit(self, X_train, X_test, y_train, y_test, epochs=10, batch_size=100, optimizer=SGD(lr=0.01)):
         train_size = X_train.shape[0]
         history = {}
         train_loss_list = []
         train_acc_list = []
         test_acc_list = []
         opt = optimizer
-
-        iter_per_epoch = max(train_size/batch_size, 1)
+        iter_per_epoch = int(max(train_size/batch_size, 1))
+        iter_num = epochs * iter_per_epoch
 
         for i in range(iter_num):
             batch_mask = np.random.choice(train_size, batch_size)
@@ -129,8 +133,7 @@ class MultiLayerNet:
                 test_acc = self.accuracy(X_test, y_test)
                 train_acc_list.append(train_acc)
                 test_acc_list.append(test_acc)
-                print("Step: {:04d}, Loss: {:.5f}, Train Acc: {:.5f}, Test Acc: {:.5f}".format(i+1, loss, train_acc, test_acc))
-        print("Step: {:04d}, Loss: {:.5f}, Train Acc: {:.5f}, Test Acc: {:.5f}".format(iter_num, loss, train_acc, test_acc))
+                print("Epoch: {}, Loss: {:.5f}, Train Acc: {:.5f}, Test Acc: {:.5f}".format(int(i/iter_per_epoch)+1, loss, train_acc, test_acc))
 
         history['train_loss'] = train_loss_list
         history['train_acc'] = test_acc_list
