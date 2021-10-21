@@ -1,105 +1,118 @@
-from nn_functions import *
+import numpy as np
+from collections import OrderedDict
+from optimizers import *
+from layers import *
 
-
-class ThreeLayerNet:
-
-    def __init__(self, input_size, hidden1_size, hidden2_size, output_size, weight_init_std=0.001):
+class MultiLayerNet:
+    def __init__(self, input_size, hidden_size_list, output_size, activation='relu', weight_init_std='relu', weight_decay_lambda=0,
+                 use_dropout = False, dropout_ratio = 0.5, use_batchnorm=False):
+        self.input_size = input_size
+        self.output_size = output_size
+        self.hidden_size_list = hidden_size_list
+        self.hidden_layer_num = len(hidden_size_list)
+        self.use_dropout = use_dropout
+        self.weight_decay_lambda = weight_decay_lambda
+        self.use_batchnorm = use_batchnorm
         self.params = {}
-        self.params['W1'] = weight_init_std*np.random.randn(input_size, hidden1_size)
-        self.params['b1'] = np.zeros(hidden1_size)
-        self.params['W2'] = weight_init_std*np.random.randn(hidden1_size, hidden2_size)
-        self.params['b2'] = np.zeros(hidden2_size)
-        self.params['W3'] = weight_init_std*np.random.randn(hidden2_size, output_size)
-        self.params['b3'] = np.zeros(output_size)
 
-    def predict(self, x):
-        W1, W2, W3 = self.params['W1'], self.params['W2'], self.params['W3']
-        b1, b2, b3 = self.params['b1'], self.params['b2'], self.params['b3']
-    
-        a1 = np.dot(x, W1) + b1
-        z1 = sigmoid(a1)
-        a2 = np.dot(z1, W2) + b2
-        z2 = sigmoid(a2)
-        a3 = np.dot(z2, W3) + b3
-        y = softmax(a3)
-        
-        return y
-        
+        # 가중치 초기화
+        self.__init_weight(weight_init_std)
 
-    def loss(self, x, t):
-        y = self.predict(x)
-        
-        return cross_entropy_error(y, t)
-    
-    def accuracy(self, x, t):
-        y = self.predict(x)
-        y = np.argmax(y, axis=1)
-        t = np.argmax(t, axis=1)
-        
-        accuracy = np.sum(y == t) / float(x.shape[0])
+        # 계층 생성
+        activation_layer = {'sigmoid': Sigmoid, 'relu': Relu}
+        self.layers = OrderedDict()
+        for idx in range(1, self.hidden_layer_num+1):
+            self.layers['Affine' + str(idx)] = Affine(self.params['W' + str(idx)],
+                                                      self.params['b' + str(idx)])
+            if self.use_batchnorm:
+                self.params['gamma' + str(idx)] = np.ones(hidden_size_list[idx-1])
+                self.params['beta' + str(idx)] = np.zeros(hidden_size_list[idx-1])
+                self.layers['BatchNorm' + str(idx)] = BatchNormalization(self.params['gamma' + str(idx)], self.params['beta' + str(idx)])
+                
+            self.layers['Activation_function' + str(idx)] = activation_layer[activation]()
+            
+            if self.use_dropout:
+                self.layers['Dropout' + str(idx)] = Dropout(dropout_ratio)
+
+        idx = self.hidden_layer_num + 1
+        self.layers['Affine' + str(idx)] = Affine(self.params['W' + str(idx)], self.params['b' + str(idx)])
+
+        self.last_layer = SoftmaxWithLoss()
+
+    def __init_weight(self, weight_init_std):
+        all_size_list = [self.input_size] + self.hidden_size_list + [self.output_size]
+        for idx in range(1, len(all_size_list)):
+            scale = weight_init_std
+            if str(weight_init_std).lower() in ('relu', 'he'):
+                scale = np.sqrt(2.0 / all_size_list[idx - 1])
+            elif str(weight_init_std).lower() in ('sigmoid', 'xavier'):
+                scale = np.sqrt(1.0 / all_size_list[idx - 1])
+            self.params['W' + str(idx)] = scale * np.random.randn(all_size_list[idx-1], all_size_list[idx])
+            self.params['b' + str(idx)] = np.zeros(all_size_list[idx])
+
+    def predict(self, x, train_flg=False):
+        for key, layer in self.layers.items():
+            if "Dropout" in key or "BatchNorm" in key:
+                x = layer.forward(x, train_flg)
+            else:
+                x = layer.forward(x)
+
+        return x
+
+    def loss(self, x, t, train_flg=False):
+        y = self.predict(x, train_flg)
+
+        weight_decay = 0
+        for idx in range(1, self.hidden_layer_num + 2):
+            W = self.params['W' + str(idx)]
+            weight_decay += 0.5 * self.weight_decay_lambda * np.sum(W**2)
+
+        return self.last_layer.forward(y, t) + weight_decay
+
+    def accuracy(self, X, T):
+        Y = self.predict(X, train_flg=False)
+        Y = np.argmax(Y, axis=1)
+        if T.ndim != 1 : T = np.argmax(T, axis=1)
+
+        accuracy = np.sum(Y == T) / float(X.shape[0])
         return accuracy
-        
-        
-    def numerical_gradient(self, x, t):
-        loss_W = lambda W: self.loss(x, t)
-        
-        grads = {}
-        grads['W1'] = numerical_gradient(loss_W, self.params['W1'])
-        grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
-        grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
-        grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
-        grads['W3'] = numerical_gradient(loss_W, self.params['W3'])        
-        grads['b3'] = numerical_gradient(loss_W, self.params['b3'])
-        
-        return grads
+
         
     def gradient(self, x, t):
-        W1, W2, W3 = self.params['W1'], self.params['W2'], self.params['W3']
-        b1, b2, b3 = self.params['b1'], self.params['b2'], self.params['b3']
-        grads = {}
-        
-        batch_num = x.shape[0]
-        
         # forward
-        a1 = np.dot(x, W1) + b1
-        z1 = sigmoid(a1)
-        a2 = np.dot(z1, W2) + b2
-        z2 = sigmoid(a2)
-        a3 = np.dot(z2, W3) + b3
-        y = softmax(a3)
-        
-        # backward
-        dy = (y - t) / batch_num
+        self.loss(x, t, train_flg=True)
 
-        grads['W3'] = np.dot(z2.T, dy)
-        grads['b3'] = np.sum(dy, axis=0)
-        
-    
-        da2 = np.dot(dy, W3.T)
-        dz2 = sigmoid_grad(a2)*da2
-        
-        grads['W2'] = np.dot(z1.T, dz2)
-        grads['b2'] = np.sum(dz2, axis=0)
-        
-        da1 = np.dot(dz2, W2.T)
-        dz1 = sigmoid_grad(a1)*da1
-        
-        grads['W1'] = np.dot(x.T, dz1)
-        grads['b1'] = np.sum(dz1, axis=0)
+        # backward
+        dout = 1
+        dout = self.last_layer.backward(dout)
+
+        layers = list(self.layers.values())
+        layers.reverse()
+        for layer in layers:
+            dout = layer.backward(dout)
+
+        # 결과 저장
+        grads = {}
+        for idx in range(1, self.hidden_layer_num+2):
+            grads['W' + str(idx)] = self.layers['Affine' + str(idx)].dW + self.weight_decay_lambda * self.params['W' + str(idx)]
+            grads['b' + str(idx)] = self.layers['Affine' + str(idx)].db
+
+            if self.use_batchnorm and idx != self.hidden_layer_num+1:
+                grads['gamma' + str(idx)] = self.layers['BatchNorm' + str(idx)].dgamma
+                grads['beta' + str(idx)] = self.layers['BatchNorm' + str(idx)].dbeta
 
         return grads
 
     
-    def fit(self, X_train, X_test, y_train, y_test, iter_num=1000, batch_size=100, learning_rate=0.25):
+    def fit(self, X_train, X_test, y_train, y_test, iter_num=1000, batch_size=100, optimizer=SGD(lr=0.01), epochs=200):
         train_size = X_train.shape[0]
         history = {}
         train_loss_list = []
         train_acc_list = []
         test_acc_list = []
+        opt = optimizer
 
-        # iter_per_epoch = max(train_size/batch_size, 1)
-
-        from scipy.special import expit
+        iter_per_epoch = max(train_size/batch_size, 1)
 
         for i in range(iter_num):
             batch_mask = np.random.choice(train_size, batch_size)
@@ -107,15 +120,11 @@ class ThreeLayerNet:
             y_batch = y_train[batch_mask]
 
             grad = self.gradient(X_batch, y_batch)
-
-            for key in ('W1', 'b1', 'W2', 'b2', 'W3', 'b3'):
-                self.params[key] -= learning_rate * grad[key]
-
+            opt.update(self.params, grad)
             loss = self.loss(X_batch, y_batch)
             train_loss_list.append(loss)
 
-            # if i%iter_per_epoch == 0:
-            if i%100 == 0:
+            if i%iter_per_epoch == 0:
                 train_acc = self.accuracy(X_train, y_train)
                 test_acc = self.accuracy(X_test, y_test)
                 train_acc_list.append(train_acc)
@@ -128,4 +137,3 @@ class ThreeLayerNet:
         history['test_acc'] = test_acc_list
 
         return history
-
